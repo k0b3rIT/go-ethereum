@@ -6,12 +6,14 @@
 package metrics
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"gopkg.in/urfave/cli.v1"
 )
 
 // Enabled is checked by the constructor functions for all of the
@@ -52,6 +54,17 @@ func init() {
 			}
 		}
 	}
+}
+
+func CollectMetadata(ctx *cli.Context) {
+	
+	metadata := GetOrRegisterMetadata("geth/info", DefaultRegistry)
+	metadata.AddOrUpdate("version", runtime.GOARCH)
+	metadata.AddOrUpdate("os", runtime.GOOS)
+	metadata.AddOrUpdate("arch", runtime.GOARCH)
+	metadata.AddOrUpdate("commit", gitCommit)
+
+	fmt.Println(DefaultRegistry.GetAll())
 }
 
 // CollectProcessMetrics periodically collects various metrics about the running

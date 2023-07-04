@@ -13,6 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/metrics/prometheus"
 )
 
+const metricsEndpoint string = "/debug/metrics";
+const metricsPrometheusEndpoint string = "/debug/metrics/prometheus";
+
 type exp struct {
 	expvarLock sync.Mutex // expvar panics if you try to register the same var twice, so we must probe it safely
 	registry   metrics.Registry
@@ -36,6 +39,15 @@ func (exp *exp) expHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "\n}\n")
 }
 
+type String struct {
+	str string
+}
+
+//There is no string type Var implementation in expvar
+func (s *String) String() string {
+	return s.str
+}
+
 // Exp will register an expvar powered metrics handler with http.DefaultServeMux on "/debug/vars"
 func Exp(r metrics.Registry) {
 	h := ExpHandler(r)
@@ -43,8 +55,8 @@ func Exp(r metrics.Registry) {
 	// panic: http: multiple registrations for /debug/vars
 	// http.HandleFunc("/debug/vars", e.expHandler)
 	// haven't found an elegant way, so just use a different endpoint
-	http.Handle("/debug/metrics", h)
-	http.Handle("/debug/metrics/prometheus", prometheus.Handler(r))
+	http.Handle(metricsEndpoint, h)
+	http.Handle(metricsPrometheusEndpoint, prometheus.Handler(r))
 }
 
 // ExpHandler will return an expvar powered metrics handler.
@@ -57,9 +69,10 @@ func ExpHandler(r metrics.Registry) http.Handler {
 // This function enables metrics reporting separate from pprof.
 func Setup(address string) {
 	m := http.NewServeMux()
-	m.Handle("/debug/metrics", ExpHandler(metrics.DefaultRegistry))
-	m.Handle("/debug/metrics/prometheus", prometheus.Handler(metrics.DefaultRegistry))
-	log.Info("Starting metrics server", "addr", fmt.Sprintf("http://%s/debug/metrics", address))
+	m.Handle(metricsEndpoint, ExpHandler(metrics.DefaultRegistry))
+	m.Handle(metricsPrometheusEndpoint, prometheus.Handler(metrics.DefaultRegistry))
+	log.Info("Starting metrics server", "addr", fmt.Sprintf("http://%s%s", address, metricsEndpoint))
+	log.Info("Starting prometheus metrics server", "addr", fmt.Sprintf("http://%s%s", address, metricsPrometheusEndpoint))
 	go func() {
 		if err := http.ListenAndServe(address, m); err != nil {
 			log.Error("Failure in running metrics server", "err", err)
@@ -89,6 +102,20 @@ func (exp *exp) getFloat(name string) *expvar.Float {
 		v = p.(*expvar.Float)
 	} else {
 		v = new(expvar.Float)
+		expvar.Publish(name, v)
+	}
+	exp.expvarLock.Unlock()
+	return v
+}
+
+func (exp *exp) getMap(name string) *expvar.Map {
+	var v *expvar.Map
+	exp.expvarLock.Lock()
+	p := expvar.Get(name)
+	if p != nil {
+		v = p.(*expvar.Map)
+	} else {
+		v = new(expvar.Map)
 		expvar.Publish(name, v)
 	}
 	exp.expvarLock.Unlock()
@@ -162,6 +189,13 @@ func (exp *exp) publishResettingTimer(name string, metric metrics.ResettingTimer
 	exp.getInt(name + ".99-percentile").Set(ps[3])
 }
 
+func (exp *exp) publishMetadata(name string, metric metrics.Metadata) {
+	m := metric.Snapshot()
+	for k, v := range m.GetAll() {
+		exp.getMap(name).Set(k, &String{v})
+	}
+}
+
 func (exp *exp) syncToExpvar() {
 	exp.registry.Each(func(name string, i interface{}) {
 		switch i := i.(type) {
@@ -179,6 +213,8 @@ func (exp *exp) syncToExpvar() {
 			exp.publishTimer(name, i)
 		case metrics.ResettingTimer:
 			exp.publishResettingTimer(name, i)
+		case metrics.Metadata:
+			exp.publishMetadata(name, i)
 		default:
 			panic(fmt.Sprintf("unsupported type for '%s': %T", name, i))
 		}

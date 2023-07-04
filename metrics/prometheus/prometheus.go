@@ -57,6 +57,8 @@ func Handler(reg metrics.Registry) http.Handler {
 				c.addTimer(name, m.Snapshot())
 			case metrics.ResettingTimer:
 				c.addResettingTimer(name, m.Snapshot())
+			case metrics.Metadata:
+				c.addMetadata(name, m.Snapshot())
 			default:
 				log.Warn("Unknown Prometheus metric type", "type", fmt.Sprintf("%T", i))
 			}

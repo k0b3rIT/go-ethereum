@@ -264,6 +264,7 @@ func init() {
 }
 
 func main() {
+	fmt.Println("Starting geth")
 	if err := app.Run(os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -315,6 +316,7 @@ func prepare(ctx *cli.Context) {
 	// Start metrics export if enabled
 	utils.SetupMetrics(ctx)
 
+	metrics.CollectMetadata(ctx)
 	// Start system runtime metrics collection
 	go metrics.CollectProcessMetrics(3 * time.Second)
 }

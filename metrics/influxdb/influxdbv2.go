@@ -215,6 +215,17 @@ func (r *v2Reporter) send() {
 				pt := influxdb2.NewPoint(measurement, r.tags, fields, now)
 				r.write.WritePoint(pt)
 			}
+			
+		case metrics.Metadata:
+			m := metric.Snapshot()
+
+			fields := make(map[string]interface{})
+
+			for k,v := range m.GetAll() {
+				fields[k]=v
+			}
+			pt := influxdb2.NewPoint(fmt.Sprintf("%s%s.metadata", namespace, name), r.tags, fields, now)
+				r.write.WritePoint(pt)
 		}
 	})
 

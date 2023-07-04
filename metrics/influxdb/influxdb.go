@@ -41,7 +41,7 @@ func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, userna
 
 	rep := &reporter{
 		reg:       r,
-		interval:  d,
+		interval:  d,	
 		url:       *u,
 		database:  database,
 		username:  username,
@@ -246,6 +246,21 @@ func (r *reporter) send() error {
 					Time: now,
 				})
 			}
+		case metrics.Metadata:
+			m := metric.Snapshot()
+
+			fields := make(map[string]interface{})
+
+			for k,v := range m.GetAll() {
+				fields[k]=v
+			}
+
+			pts = append(pts, client.Point{
+				Measurement: fmt.Sprintf("%s%s.metadata", namespace, name),
+					Tags:        r.tags,
+					Fields: fields,
+					Time: now,
+			})
 		}
 	})
 

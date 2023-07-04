@@ -98,6 +98,16 @@ func (c *collector) addResettingTimer(name string, m metrics.ResettingTimer) {
 	c.buff.WriteRune('\n')
 }
 
+func (c *collector) addMetadata(name string, m metrics.Metadata) {
+	c.buff.WriteString("# TYPE " + mutateKey(name) + "_metadata metadata\n")
+	c.buff.WriteString(mutateKey(name) + " {")
+	for k, v := range m.GetAll() {
+		c.buff.WriteString(k + "=" + v);
+	}
+	c.buff.WriteString("}")
+	c.buff.WriteRune('\n')
+}
+
 func (c *collector) writeGaugeCounter(name string, value interface{}) {
 	name = mutateKey(name)
 	c.buff.WriteString(fmt.Sprintf(typeGaugeTpl, name))
